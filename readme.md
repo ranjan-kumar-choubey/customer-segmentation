@@ -1,7 +1,9 @@
-curl -o elbow_curve.png http://localhost:8000/elbow-curve
 
+tets api : 
+Health check : curl https://customer-segmentation-3iy1.onrender.com/
+elbow curve  : curl https://customer-segmentation-3iy1.onrender.com/elbow-curve
 
-curl -X POST "http://localhost:8000/run-rfm?k=2"
+run-model :    curl -X POST "https://customer-segmentation-3iy1.onrender.com/run-rfm?k=3"
 
 
 --for production
