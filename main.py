@@ -1,50 +1,50 @@
-from fastapi import FastAPI, BackgroundTasks
-import uvicorn
-from model import clean_data, compute_rfm, interpret_clusters, load_data, perform_kmeans_clustering, score_rfm
+from fastapi import FastAPI, HTTPException
+import pandas as pd
+import joblib
+
+from model import calculate_elbow_curve, compute_rfm, load_data
 
 app = FastAPI()
+data = load_data()  # Load the data as in the previous script
+
+# Function to use a pre-computed model for RFM analysis
+def rfm_analysis_with_precomputed_model(data, k):
+    try:
+        kmeans = joblib.load(f'models/kmeans_k{k}.joblib')
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Model for k={k} not found")
+
+    rfm = compute_rfm(data)
+    X = rfm[['Recency', 'Frequency', 'MonetaryValue']]
+    rfm['Cluster'] = kmeans.predict(X)
+    
+    return rfm.groupby('Cluster').mean().to_dict()
+
+
 
 @app.get("/")
-async def home():
-    return {"message": "Welcome to the RFM Model API. Use /run-model to execute the model."}
+async def health_check():
+    print("Home API hitted !! ")
+    return {"message": "API is up and running"}
 
-@app.get("/run-model")
-async def run_model():
-    try:
-        # Step 1: Load dataset
-        path = 'dataset/Online Retail.xlsx'
-        response = {"status": "success", "messages": ["Loading dataset..."]}
-        data = load_data(path)
 
-        # Step 2: Clean data
-        response['messages'].append("Dataset loaded. Cleaning data...")
-        cleaned_data = clean_data(data)
+@app.get("/elbow-curve")
+async def elbow_curve():
+    print("Elbow Curve API hitted")
+    return calculate_elbow_curve(data)
 
-        # Step 3: Compute RFM
-        response['messages'].append("Data cleaned. Computing RFM...")
-        rfm = compute_rfm(cleaned_data)
 
-        # Step 4: Score RFM
-        response['messages'].append("RFM computed. Scoring RFM...")
-        scored_rfm = score_rfm(rfm)
 
-        # Step 5: Perform K-Means Clustering
-        response['messages'].append("RFM scored. Running model...")
-        clustered_rfm = perform_kmeans_clustering(scored_rfm)
+@app.post("/run-rfm")
+async def run_rfm(k: int):
+    print("run-rfm api hitted with k",k)
+    if k <= 0:
+        raise HTTPException(status_code=400, detail="k must be a positive integer")
+    return rfm_analysis_with_precomputed_model(data, k)
 
-        # Step 6: Interpret Clusters
-        response['messages'].append("Model running complete. Interpreting clusters...")
-        cluster_summary = interpret_clusters(clustered_rfm)
-
-        # Step 7: Prepare final response
-        result = cluster_summary.to_dict(orient='records')
-        response['cluster_summary'] = result
-        response['messages'].append("Process complete.")
-
-        return response
-
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+# FastAPI main function and other endpoints
+# ...
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="debug", reload=False)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
